@@ -6,14 +6,15 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include "wfs.h"
+#include <stdlib.h>
+#include <string.h>
 
 int init_filesystem(char *disk_path) {
     int fd;
     struct stat statbuf;
-    void *mapped;
  
     // opening the file in write mode
-    fd = open(disk_path, "w");
+    fd = open(disk_path, O_WRONLY);
  
     // checking if the file is opened successfully
     if (fd < 0) {
@@ -43,7 +44,7 @@ int init_filesystem(char *disk_path) {
     sb->head = mapped + sizeof(struct wfs_sb);
 
     // Copy superblock into mapped memory and then free the malloc ptr
-    memcpy(mapped, sb, sizeof(sb));
+    memcpy((void*)mapped, (void*)sb, sizeof(sb));
     free(sb);
 
     // Initialize root inode
@@ -88,6 +89,7 @@ int main( int argc, char *argv[] )  {
     }
 
     nextInodeNum = 0;
-    char *disk_path = argv[1];
+    disk_path = argv[1];
+    init_filesystem(disk_path);
 }
 
