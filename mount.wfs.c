@@ -132,9 +132,45 @@ static int wfs_getattr(const char* path, struct stat* stbuf){
 //     return 0; 
 // }
 
-// static int wfs_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
-//     return 0;
-// }
+static int wfs_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
+    
+    unsigned long inode_num = get_inode_num(path);
+
+    if(inode_num == -1){
+        return -ENOENT;
+    }
+
+    struct wfs_inode *inode = get_inode(inode_num);
+
+    if(inode == NULL){
+        return -ENOENT;
+    }
+
+    if(inode->mode != S_IFREG){
+        return -ENOENT;
+    }
+
+
+    if(offset >= inode -> size){
+        return 0;
+    }
+
+    size_t max_write = inode->size - offset;
+    size_t write_size; 
+
+    if(size < max_write){
+        write_size = size;
+    }
+    else{
+        write_size = max_write;
+    }
+
+    struct wfs_log_entry *latest = (struct wfs_log_entry *)inode;
+
+    memcpy(latest->data + offset, buf, size);
+
+    return write_size;
+}
 
 // static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi){
 //     return 0;
@@ -149,7 +185,7 @@ static struct fuse_operations ops = {
     // .mknod      = wfs_mknod,
     // .mkdir      = wfs_mkdir,
     // .read	    = wfs_read,
-    // .write      = wfs_write,
+    .write      = wfs_write,
     // .readdir	= wfs_readdir,
     // .unlink    	= wfs_unlink,
 };
