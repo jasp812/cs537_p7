@@ -94,6 +94,8 @@ static struct wfs_inode *get_inode(unsigned long inode_num){
 
 }
 
+
+
 static int wfs_getattr(const char* path, struct stat* stbuf){
 
     unsigned long inode_num = get_inode_num(path);
@@ -128,9 +130,34 @@ static int wfs_getattr(const char* path, struct stat* stbuf){
 //     return 0;
 // }
 
-// static int wfs_read(const char* path, char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
-//     return 0; 
-// }
+static int wfs_read(const char* path, char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
+
+    unsigned long inodeNum = get_inode_num(path);
+    struct wfs_inode *inode = get_inode(inodeNum);
+    struct wfs_log_entry *log_entry = (struct wfs_log_entry *)inode;
+    char *data = &(log_entry->data);
+    size_t numBytes = size;
+
+    if(offset >= inode->size) {
+        printf("Offset cannot exceed size of data\n");
+        return 0;
+    }
+
+    if(inode->mode != __S_IFREG) {
+        printf("Cannot read from a non-regular file\n");
+        return 0;
+    }
+
+    if(size >= inode->size) {
+        numBytes = inode->size;
+    } 
+
+    memcpy((void *)buf, (void *)data, numBytes);
+
+
+
+    return numBytes; 
+}
 
 // static int wfs_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
 //     return 0;
@@ -148,7 +175,7 @@ static struct fuse_operations ops = {
     .getattr	= wfs_getattr,
     // .mknod      = wfs_mknod,
     // .mkdir      = wfs_mkdir,
-    // .read	    = wfs_read,
+    .read	    = wfs_read,
     // .write      = wfs_write,
     // .readdir	= wfs_readdir,
     // .unlink    	= wfs_unlink,
