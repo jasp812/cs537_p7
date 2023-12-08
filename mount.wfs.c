@@ -4,9 +4,10 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 #include "wfs.h"
 
-
+void *mapped;
 
 // Find the inode number associated with path
 static unsigned long get_inode_num(const char* path){
@@ -157,6 +158,14 @@ static struct fuse_operations ops = {
 int main(int argc, char *argv[]) {
     // Initialize FUSE with specified operations
     // Filter argc and argv here and then pass it to fuse_main
+    struct stat statbuf;
+    int fd = open(disk_path, O_WRONLY);
+
+    if (fstat(fd, &statbuf) < 0) {
+        printf ("fstat error");
+        return 0;
+    }
+    mapped = mmap(0, statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
     argv[argc - 2] = argv[argc - 1];
     argv[argc - 1] = NULL;

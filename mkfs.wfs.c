@@ -11,6 +11,7 @@
 
 int init_filesystem(char *disk_path) {
     int fd;
+    void *mapped;
     struct stat statbuf;
  
     // opening the file in write mode
@@ -72,6 +73,8 @@ int init_filesystem(char *disk_path) {
     free(inode);
     free(log_entry);
     
+    munmap(mapped, sb->head);
+    close(fd);
 
 
     return 0;

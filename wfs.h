@@ -7,7 +7,7 @@
 #define MAX_FILE_NAME_LEN 32
 #define WFS_MAGIC 0xdeadbeef
 
-void *mapped;
+
 char *disk_path;
 
 int nextInodeNum;
