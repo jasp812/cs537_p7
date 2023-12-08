@@ -10,7 +10,7 @@
 void *mapped;
 char *disk_path;
 
-extern int nextInodeNum;
+int nextInodeNum;
 
 struct wfs_sb {
     uint32_t magic;
