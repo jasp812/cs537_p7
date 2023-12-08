@@ -138,6 +138,15 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
     char *data = &(log_entry->data);
     size_t numBytes = size;
 
+     if(inodeNum == -1){
+        return -ENOENT;
+    }
+
+
+    if(inode == NULL){
+        return -ENOENT;
+    }
+
     if(offset >= inode->size) {
         printf("Offset cannot exceed size of data\n");
         return 0;
@@ -145,7 +154,7 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
 
     if(inode->mode != __S_IFREG) {
         printf("Cannot read from a non-regular file\n");
-        return 0;
+        return -ENOENT;
     }
 
     if(size >= inode->size) {
@@ -173,7 +182,7 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
         return -ENOENT;
     }
 
-    if(inode->mode != S_IFREG){
+    if(inode->mode != __S_IFREG){
         return -ENOENT;
     }
 
