@@ -6,8 +6,27 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include "wfs.h"
+#include <stdlib.h>
 
 void *mapped;
+
+static unsigned long get_max_inode_num(const char* path){
+    unsigned long max_inode_num = 0;
+
+    char *start = (char *)mapped + sizeof(struct wfs_sb);
+    while(start < (char *)mapped + ((struct wfs_sb *)mapped)->head){
+        struct wfs_log_entry *entry  = (struct wfs_log_entry *)start; 
+
+        if(entry->inode.inode_number > max_inode_num){
+            max_inode_num = entry->inode.inode_number;
+        }
+
+        start += sizeof(struct wfs_inode) + entry->inode.size;
+    }
+
+
+    return max_inode_num;
+}
 
 // Find the inode number associated with path
 static unsigned long get_inode_num(const char* path){
@@ -122,9 +141,37 @@ static int wfs_getattr(const char* path, struct stat* stbuf){
     return 0;
 }
 
-// static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
-//     return 0;
-// }
+static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
+
+    unsigned long inode_num = get_inode_num(path);
+
+    if(inode_num >= 0){
+        return -EEXIST;
+    }
+
+    struct wfs_inode *inode = (struct wfs_inode *)malloc(sizeof(struct wfs_inode));
+    inode->inode_number = get_max_inode_num(path) + 1;
+    inode->deleted = 0;
+    inode->mode = __S_IFREG;
+    inode->uid = getuid();
+    inode->gid = getgid();
+    inode->flags = 0;
+    inode->size = 0;
+    inode->atime = time(NULL);
+    inode->mtime = time(NULL);
+    inode->ctime = time(NULL);
+    inode->links = 1;
+
+    struct wfs_log_entry *new_log = (struct wfs_log_entry *)malloc(sizeof(struct wfs_log_entry));
+    new_log->inode = *inode;
+
+    memcpy(new_log->data, "", 0);
+    memcpy((void *)((uintptr_t)mapped + sizeof(struct wfs_sb)), new_log, sizeof(*new_log));
+    ((struct wfs_sb *)mapped)->head += sizeof(*new_log);
+
+
+    return 0;
+}
 
 // static int wfs_mkdir(const char* path, mode_t mode){
 //     return 0;
@@ -135,7 +182,7 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
     unsigned long inodeNum = get_inode_num(path);
     struct wfs_inode *inode = get_inode(inodeNum);
     struct wfs_log_entry *log_entry = (struct wfs_log_entry *)inode;
-    char *data = &(log_entry->data);
+    // char *data = &(log_entry->data);
     size_t numBytes = size;
 
      if(inodeNum == -1){
@@ -161,7 +208,7 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
         numBytes = inode->size;
     } 
 
-    memcpy((void *)buf, (void *)data, numBytes);
+    memcpy((void *)buf, (void *)log_entry->data, numBytes);
 
 
 
@@ -218,7 +265,7 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
 
 static struct fuse_operations ops = {
     .getattr	= wfs_getattr,
-    // .mknod      = wfs_mknod,
+    .mknod      = wfs_mknod,
     // .mkdir      = wfs_mkdir,
     .read	    = wfs_read,
     .write      = wfs_write,

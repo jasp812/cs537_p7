@@ -73,11 +73,9 @@ int init_filesystem(char *disk_path) {
     struct wfs_log_entry *log_entry = (struct wfs_log_entry *)malloc(sizeof(struct wfs_log_entry));
     log_entry->inode = *inode;
     memcpy(log_entry->data, "", 0);
-    printf("Copying in some empty data to log entry\n");
 
     // Copy root log entry into disk, update head, and free malloc'd ptrs
     memcpy((void *)((uintptr_t)mapped + sizeof(struct wfs_sb)), log_entry, sizeof(*log_entry));
-    printf("Copy root log entry into disk\n");
     sb->head += sizeof(*log_entry);
     free(inode);
     free(log_entry);
