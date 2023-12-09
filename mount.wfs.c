@@ -151,8 +151,10 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
 
     struct wfs_inode *inode = (struct wfs_inode *)malloc(sizeof(struct wfs_inode));
     inode->inode_number = get_max_inode_num(path) + 1;
+    // Alternative: could use the nextInodeNum global variable I initialized in the header file and update it
+    
     inode->deleted = 0;
-    inode->mode = __S_IFREG;
+    inode->mode = mode;
     inode->uid = getuid();
     inode->gid = getgid();
     inode->flags = 0;
