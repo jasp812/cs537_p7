@@ -7,6 +7,7 @@
 #include <sys/mman.h>
 #include "wfs.h"
 #include <stdlib.h>
+#include <sys/sysmacros.h>
 
 void *mapped;
 
@@ -150,9 +151,10 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     }
 
     struct wfs_inode *inode = (struct wfs_inode *)malloc(sizeof(struct wfs_inode));
+
     inode->inode_number = get_max_inode_num(path) + 1;
-    // Alternative: could use the nextInodeNum global variable I initialized in the header file and update it
-    
+    // Alternative: could use the nextInodeNum global variable initialized in the header file and update it
+
     inode->deleted = 0;
     inode->mode = mode;
     inode->uid = getuid();
@@ -168,16 +170,72 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     new_log->inode = *inode;
 
     memcpy(new_log->data, "", 0);
-    memcpy((void *)((uintptr_t)mapped + sizeof(struct wfs_sb)), new_log, sizeof(*new_log));
-    ((struct wfs_sb *)mapped)->head += sizeof(*new_log);
+
+    // ------- Update log with new updated log entry of the parent directory of this new inode -----------
+    char parentPath[1000];
+
+    char copy[1000];
+    strcpy(copy, path);
+
+    char *ptr;
+    char *token = (strtok_r(copy, "/", &ptr));
+    char new_filename[MAX_FILE_NAME_LEN];
+
+    // Parse through given path to construct the path of the parent directory and also get the new inode filename
+    while(token) {
+        char prevToken[300];
+        strcpy(prevToken, token);
+
+        token = strtok_r(NULL, "/", &ptr);
+
+        // Reason we check for this before strcat call on parentPath is to check if the prevToken is 
+        // the filename of the new inode. If it is, we don't want to include it in the parentPath
+        // and so just break
+        if(token == NULL) {
+            strcpy(new_filename, prevToken);
+            break;
+        }
+
+        strcat(parentPath, "/");
+        strcat(parentPath, prevToken);
+        
+    }
+
+    // Get the log entry associated with the parent directory
+    int inodeNum = get_inode_num(parentPath);
+    struct wfs_inode *inode = get_inode(inodeNum);
+    struct wfs_log_entry *log_entry = (struct wfs_log_entry *)inode;
+
+    // Make new dentry corresponding to the new inode, and add it to the parent dir log entry
+    struct wfs_dentry *new_dentry = malloc(sizeof(struct wfs_dentry));
+    strcpy(new_dentry->name, new_filename);
+    new_dentry->inode_number = inode->inode_number;
+
+    // Copy that new dentry into a new parent log entry
+    struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
+    void *parent_log_head = (void *)((uintptr_t)new_parent_log + sizeof(*log_entry));
+    memcpy(parent_log_head, new_dentry, sizeof(struct wfs_dentry));
+
+    // Copy new update parent log entry into the log
+    struct wfs_sb *sb = (struct wfs_sb *)mapped;
+    memcpy((void *)((uintptr_t)(sb->head)), new_parent_log, sizeof(new_parent_log));
+    sb->head += sizeof(new_parent_log);
+
+    // Copy new log entry for new inode into log
+    memcpy((void *)((uintptr_t)(sb->head)), new_log, sizeof(*new_log));
+    sb->head += sizeof(*new_log);
 
 
     return 0;
 }
 
-// static int wfs_mkdir(const char* path, mode_t mode){
-//     return 0;
-// }
+static int wfs_mkdir(const char* path, mode_t mode){
+    
+    // make inode for the directory
+    wfs_mknod(path, mode, makedev(0, 0));
+
+    return 0;
+}
 
 static int wfs_read(const char* path, char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
 
