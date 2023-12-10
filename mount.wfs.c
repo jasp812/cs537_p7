@@ -201,18 +201,18 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
 
     // Get the log entry associated with the parent directory
     int inodeNum = get_inode_num(parentPath);
-    struct wfs_inode *inode = get_inode(inodeNum);
+    struct wfs_inode *parent_inode = get_inode(inodeNum);
     struct wfs_log_entry *log_entry = (struct wfs_log_entry *)inode;
 
     // Make new dentry corresponding to the new inode, and add it to the parent dir log entry
     struct wfs_dentry *new_dentry = malloc(sizeof(struct wfs_dentry));
     strcpy(new_dentry->name, new_filename);
-    new_dentry->inode_number = inode->inode_number;
+    new_dentry->inode_number = parent_inode->inode_number;
 
     // Copy that new dentry into a new parent log entry
     struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
     void *parent_log_head = (void *)((uintptr_t)new_parent_log + sizeof(*log_entry));
-    memcpy(new_parent_log, inode, sizeof(*inode));
+    memcpy(new_parent_log, parent_inode, sizeof(*inode));
     new_parent_log->inode.size += sizeof(*new_dentry);
     new_parent_log->inode.ctime = time(NULL);
     new_parent_log->inode.mtime = time(NULL);
@@ -343,7 +343,7 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
 
     // Check that the dir exists
     if(inodeNum == -1) {
-        print("Directory does not exist\n");
+        printf("Directory does not exist\n");
         return -ENOENT;
     }
 
@@ -365,9 +365,89 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
     return 0;
 }
 
-// static int wfs_unlink(const char* path){
-//     return 0;
-// }
+static int wfs_unlink(const char* path){
+
+    unsigned long inode_num = get_inode_num(path);
+
+    if(inode_num == -1){
+        return -ENOENT;
+    }
+
+    struct wfs_log_entry *entry = (struct wfs_log_entry *)get_inode(inode_num);
+
+    if(entry == NULL){
+        return -ENOENT;
+    }
+    
+    // entry is now deleted
+    entry ->inode.deleted = 1;
+
+    // ------- Update log with new updated log entry of the parent directory of this new inode -----------
+    char parentPath[1000];
+
+    char copy[1000];
+    strcpy(copy, path);
+
+    char *ptr;
+    char *token = (strtok_r(copy, "/", &ptr));
+    char new_filename[MAX_FILE_NAME_LEN];
+
+    // Parse through given path to construct the path of the parent directory and also get the new inode filename
+    while(token) {
+        char prevToken[300];
+        strcpy(prevToken, token);
+
+        token = strtok_r(NULL, "/", &ptr);
+
+        // Reason we check for this before strcat call on parentPath is to check if the prevToken is 
+        // the filename of the new inode. If it is, we don't want to include it in the parentPath
+        // and so just break
+        if(token == NULL) {
+            strcpy(new_filename, prevToken);
+            break;
+        }
+
+        strcat(parentPath, "/");
+        strcat(parentPath, prevToken);
+        
+    }
+
+    // Get the log entry associated with the parent directory
+    int inodeNum = get_inode_num(parentPath);
+    struct wfs_inode *inode = get_inode(inodeNum);
+    struct wfs_log_entry *log_entry = (struct wfs_log_entry *)inode;
+    struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
+
+
+    // Copy all the direntries from the previous inode that aren't the deleted 
+    // file
+    char *start = (char *)log_entry->data;
+    while(start != NULL){
+        struct wfs_dentry *latest = (struct wfs_dentry *)start;
+        if(strcmp(latest->name, path)){
+            struct wfs_dentry *new_dentry = malloc(sizeof(struct wfs_dentry));
+            strcpy(new_dentry->name, new_filename);
+            new_dentry->inode_number = inode->inode_number;
+
+            // Copy that new dentry into a new parent log entry
+            void *parent_log_head = (void *)((uintptr_t)new_parent_log + sizeof(*log_entry));
+            memcpy(new_parent_log, inode, sizeof(*inode));
+            new_parent_log->inode.size += sizeof(*new_dentry);
+            new_parent_log->inode.ctime = time(NULL);
+            new_parent_log->inode.mtime = time(NULL);
+            memcpy(parent_log_head, new_dentry, sizeof(struct wfs_dentry));
+
+        }
+        start += sizeof(struct wfs_dentry);
+    }
+
+    // Copy new update parent log entry into the log
+    struct wfs_sb *sb = (struct wfs_sb *)mapped;
+    memcpy((void *)((uintptr_t)(sb->head) + disk_path), new_parent_log, sizeof(*new_parent_log));
+    sb->head += sizeof(*new_parent_log);
+
+    return 0;
+}
 
 static struct fuse_operations ops = {
     .getattr	= wfs_getattr,
@@ -376,7 +456,7 @@ static struct fuse_operations ops = {
     .read	    = wfs_read,
     .write      = wfs_write,
     .readdir	= wfs_readdir,
-    // .unlink    	= wfs_unlink,
+    .unlink    	= wfs_unlink,
 };
 
 
