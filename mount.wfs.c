@@ -166,10 +166,8 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     inode->ctime = time(NULL);
     inode->links = 1;
 
-    struct wfs_log_entry *new_log = (struct wfs_log_entry *)malloc(sizeof(struct wfs_log_entry));
+    struct wfs_log_entry *new_log = (struct wfs_log_entry *)malloc(sizeof(struct wfs_inode));
     new_log->inode = *inode;
-
-    memcpy(new_log->data, "", 0);
 
     // ------- Update log with new updated log entry of the parent directory of this new inode -----------
     char parentPath[1000];
@@ -230,8 +228,15 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
 }
 
 static int wfs_mkdir(const char* path, mode_t mode){
-    
+    // Check that it is not of mode S_IFREG (regular file)
+    if(mode == __S_IFREG) {
+        printf("Can't initialize a file with mkdir");
+        return -ENOTDIR;
+    }
+
     // make inode for the directory
+    // mknod will also update the log for us with an new updated parent dir log entry, and a
+    // new log entry for the new dir
     wfs_mknod(path, mode, makedev(0, 0));
 
     return 0;
@@ -310,7 +315,16 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
 
     struct wfs_log_entry *latest = (struct wfs_log_entry *)inode;
 
-    memcpy(latest->data + offset, buf, size);
+    // Create new log entry containing new written data
+    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)malloc(sizeof(latest) + write_size);
+    void *write_addr = (void *)(new_log_entry->data + offset);
+    memcpy(new_log_entry, inode, sizeof(inode));
+    memcpy(write_addr, buf, write_size);
+
+    // Update log with this new log entry and update superblock head
+    struct wfs_sb *sb = (struct wfs_sb *)mapped;
+    memcpy((void *)((uintptr_t)(sb->head)), new_log_entry, sizeof(new_log_entry));
+    sb->head += sizeof(new_log_entry);
 
     return write_size;
 }
