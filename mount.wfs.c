@@ -212,16 +212,16 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     // Copy that new dentry into a new parent log entry
     struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
     void *parent_log_head = (void *)((uintptr_t)new_parent_log + sizeof(*log_entry));
-    memcpy(new_parent_log, inode, sizeof(inode));
-    new_parent_log->inode.size += sizeof(new_dentry);
+    memcpy(new_parent_log, inode, sizeof(*inode));
+    new_parent_log->inode.size += sizeof(*new_dentry);
     new_parent_log->inode.ctime = time(NULL);
     new_parent_log->inode.mtime = time(NULL);
     memcpy(parent_log_head, new_dentry, sizeof(struct wfs_dentry));
 
     // Copy new update parent log entry into the log
     struct wfs_sb *sb = (struct wfs_sb *)mapped;
-    memcpy((void *)((uintptr_t)(sb->head)), new_parent_log, sizeof(new_parent_log));
-    sb->head += sizeof(new_parent_log);
+    memcpy((void *)((uintptr_t)(sb->head) + disk_path), new_parent_log, sizeof(*new_parent_log));
+    sb->head += sizeof(*new_parent_log);
 
     // Copy new log entry for new inode into log
     memcpy((void *)((uintptr_t)(sb->head)), new_log, sizeof(*new_log));
@@ -284,6 +284,8 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
     return numBytes; 
 }
 
+// TODO: change write so that it doesn't check if size or offset exceeds inode's size bounds,
+// since that prevents write from being used to append to the end of a file
 static int wfs_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
     
     unsigned long inode_num = get_inode_num(path);
@@ -320,9 +322,9 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
     struct wfs_log_entry *latest = (struct wfs_log_entry *)inode;
 
     // Create new log entry containing new written data
-    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)malloc(sizeof(latest) + write_size);
+    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)malloc(sizeof(*latest) + write_size);
     void *write_addr = (void *)(new_log_entry->data + offset);
-    memcpy(new_log_entry, inode, sizeof(inode));
+    memcpy(new_log_entry, inode, sizeof(*inode));
     memcpy(write_addr, buf, write_size);
     new_log_entry->inode.size = sizeof(*new_log_entry) - sizeof(struct wfs_inode);
     new_log_entry->inode.mtime = time(NULL);
@@ -330,8 +332,8 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
 
     // Update log with this new log entry and update superblock head
     struct wfs_sb *sb = (struct wfs_sb *)mapped;
-    memcpy((void *)((uintptr_t)(sb->head)), new_log_entry, sizeof(new_log_entry));
-    sb->head += sizeof(new_log_entry);
+    memcpy((void *)((uintptr_t)(sb->head) + disk_path), new_log_entry, sizeof(*new_log_entry));
+    sb->head += sizeof(*new_log_entry);
 
     return write_size;
 }
@@ -354,8 +356,9 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
     }
 
     struct wfs_dentry *entry = &dir_to_read->data;
+
     // While there is still an entry to read, fill buffer with entry name
-    while((void *)entry < (void *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, 0)) {
+    while((void *)entry < (void *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, entry + sizeof(struct wfs_dentry))) {
         entry += sizeof(struct wfs_dentry);
     }
 
