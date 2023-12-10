@@ -212,6 +212,10 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     // Copy that new dentry into a new parent log entry
     struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
     void *parent_log_head = (void *)((uintptr_t)new_parent_log + sizeof(*log_entry));
+    memcpy(new_parent_log, inode, sizeof(inode));
+    new_parent_log->inode.size += sizeof(new_dentry);
+    new_parent_log->inode.ctime = time(NULL);
+    new_parent_log->inode.mtime = time(NULL);
     memcpy(parent_log_head, new_dentry, sizeof(struct wfs_dentry));
 
     // Copy new update parent log entry into the log
@@ -230,16 +234,16 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
 static int wfs_mkdir(const char* path, mode_t mode){
     // Check that it is not of mode S_IFREG (regular file)
     if(mode == __S_IFREG) {
-        printf("Can't initialize a file with mkdir");
+        printf("Can't initialize a file with mkdir\n");
         return -ENOTDIR;
     }
 
     // make inode for the directory
     // mknod will also update the log for us with an new updated parent dir log entry, and a
     // new log entry for the new dir
-    wfs_mknod(path, mode, makedev(0, 0));
+    int ret = wfs_mknod(path, mode, makedev(0, 0));
 
-    return 0;
+    return ret;
 }
 
 static int wfs_read(const char* path, char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
@@ -320,6 +324,9 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
     void *write_addr = (void *)(new_log_entry->data + offset);
     memcpy(new_log_entry, inode, sizeof(inode));
     memcpy(write_addr, buf, write_size);
+    new_log_entry->inode.size = sizeof(*new_log_entry) - sizeof(struct wfs_inode);
+    new_log_entry->inode.mtime = time(NULL);
+    new_log_entry->inode.ctime = time(NULL);
 
     // Update log with this new log entry and update superblock head
     struct wfs_sb *sb = (struct wfs_sb *)mapped;
@@ -329,9 +336,31 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
     return write_size;
 }
 
-// static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi){
-//     return 0;
-// }
+static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi){
+    int inodeNum = get_inode_num(path);
+
+    // Check that the dir exists
+    if(inodeNum == -1) {
+        print("Directory does not exist\n");
+        return -ENOENT;
+    }
+
+    struct wfs_log_entry *dir_to_read = (struct wfs_log_entry *)get_inode(inodeNum);
+
+    // Check that it is a dir
+    if(dir_to_read->inode.mode == __S_IFREG) {
+        printf("Cannot readdir on type regular file\n");
+        return -ENOTDIR;
+    }
+
+    struct wfs_dentry *entry = &dir_to_read->data;
+    // While there is still an entry to read, fill buffer with entry name
+    while((void *)entry < (void *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, 0)) {
+        entry += sizeof(struct wfs_dentry);
+    }
+
+    return 0;
+}
 
 // static int wfs_unlink(const char* path){
 //     return 0;
@@ -340,7 +369,7 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
 static struct fuse_operations ops = {
     .getattr	= wfs_getattr,
     .mknod      = wfs_mknod,
-    // .mkdir      = wfs_mkdir,
+    .mkdir      = wfs_mkdir,
     .read	    = wfs_read,
     .write      = wfs_write,
     // .readdir	= wfs_readdir,
