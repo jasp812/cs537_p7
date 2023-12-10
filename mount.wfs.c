@@ -1,4 +1,5 @@
 #define FUSE_USE_VERSION 30
+#include <unistd.h>
 #include <fuse.h>
 #include <stdio.h>
 #include <string.h>
@@ -355,10 +356,10 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
         return -ENOTDIR;
     }
 
-    struct wfs_dentry *entry = &dir_to_read->data;
+    struct wfs_dentry *entry = (struct wfs_dentry *)dir_to_read->data;
 
     // While there is still an entry to read, fill buffer with entry name
-    while((void *)entry < (void *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, entry + sizeof(struct wfs_dentry))) {
+    while((void *)entry < (void *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, (off_t)(entry + sizeof(struct wfs_dentry)))) {
         entry += sizeof(struct wfs_dentry);
     }
 
