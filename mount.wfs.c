@@ -273,11 +273,11 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
         return -ENOENT;
     }
 
-    if(size >= inode->size) {
-        numBytes = inode->size;
+    if(size >= inode->size - offset) {
+        numBytes = inode->size - offset;
     } 
 
-    memcpy((void *)buf, (void *)log_entry->data, numBytes);
+    memcpy((void *)buf, (void *)(log_entry->data + offset), numBytes);
 
 
 
@@ -372,7 +372,7 @@ static struct fuse_operations ops = {
     .mkdir      = wfs_mkdir,
     .read	    = wfs_read,
     .write      = wfs_write,
-    // .readdir	= wfs_readdir,
+    .readdir	= wfs_readdir,
     // .unlink    	= wfs_unlink,
 };
 
