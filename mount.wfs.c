@@ -359,7 +359,7 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
     struct wfs_dentry *entry = (struct wfs_dentry *)dir_to_read->data;
 
     // While there is still an entry to read, fill buffer with entry name
-    while((void *)entry < (void *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, (off_t)(entry + sizeof(struct wfs_dentry)))) {
+    while((char *)entry < (char *)(&dir_to_read->data) + dir_to_read->inode.size && !filler(buf, entry->name, NULL, (off_t)(entry + sizeof(struct wfs_dentry)))) {
         entry += sizeof(struct wfs_dentry);
     }
 
@@ -465,13 +465,14 @@ int main(int argc, char *argv[]) {
     // Initialize FUSE with specified operations
     // Filter argc and argv here and then pass it to fuse_main
     struct stat statbuf;
-    int fd = open(disk_path, O_WRONLY);
+    int fd = open(disk_path, O_RDWR);
 
     if (fstat(fd, &statbuf) < 0) {
         printf ("fstat error");
         return 0;
     }
     mapped = mmap(0, statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
 
     argv[argc - 2] = argv[argc - 1];
     argv[argc - 1] = NULL;
