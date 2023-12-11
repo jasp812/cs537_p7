@@ -564,10 +564,9 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
     // While there is still an entry to read, fill buffer with entry name
     while((char *)entry < (char *)(&dir_to_read->data) + dir_to_read->inode.size) {
         
-        off_t off = (((char*)entry + sizeof(struct wfs_dentry)) < (char *)(&dir_to_read->data) + dir_to_read->inode.size) ? (off_t)(entry + sizeof(struct wfs_dentry)) : 0;
-        if(!filler(buf, entry->name, NULL, off)) {
-            break;
-        }
+        // off_t off = (((char*)entry + sizeof(struct wfs_dentry)) < (char *)(&dir_to_read->data) + dir_to_read->inode.size) ? (off_t)((char*)entry + sizeof(struct wfs_dentry)) : 0;
+        filler(buf, entry->name, NULL, 0);
+        
         entry += 1;
     }
 
