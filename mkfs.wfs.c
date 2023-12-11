@@ -70,18 +70,20 @@ int init_filesystem(char *disk_path) {
     printf("Init root inode\n");
 
     // Initialize root log entry
-    struct wfs_log_entry *log_entry = (struct wfs_log_entry *)malloc(sizeof(struct wfs_log_entry));
-    log_entry->inode = *inode;
-    memcpy(log_entry->data, "", 0);
+    struct wfs_log_entry *log_entry = (struct wfs_log_entry *)malloc(sizeof(struct wfs_inode));
+    memcpy(log_entry, inode, sizeof(*inode));
 
     // Copy root log entry into disk, update head, and free malloc'd ptrs
     memcpy((void *)((uintptr_t)mapped + sizeof(struct wfs_sb)), log_entry, sizeof(*log_entry));
     sb->head += sizeof(*log_entry);
+
+    // printf("%d\n", ((struct wfs_log_entry *)((uintptr_t)mapped + sizeof(struct wfs_sb)))->inode.inode_number);
     free(inode);
     free(log_entry);
     
     munmap(mapped, sb->head);
     close(fd);
+
 
 
     return 0;
