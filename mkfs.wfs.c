@@ -103,7 +103,7 @@ int main( int argc, char *argv[] )  {
     nextInodeNum = 0;
     printf("Checkpoint 1\n");
 
-    disk_path = argv[1];
+    char *disk_path = argv[1];
     printf("Checkpoint 2\n");
     init_filesystem(disk_path);
 }

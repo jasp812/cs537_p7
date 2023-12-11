@@ -8,7 +8,6 @@
 #define WFS_MAGIC 0xdeadbeef
 
 
-char *disk_path;
 
 int nextInodeNum;
 

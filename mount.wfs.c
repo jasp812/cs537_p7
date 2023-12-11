@@ -11,6 +11,7 @@
 #include <sys/sysmacros.h>
 
 void *mapped;
+char *disk_path;
 
 static unsigned long get_max_inode_num(const char* path){
     unsigned long max_inode_num = 0;
@@ -36,7 +37,7 @@ static unsigned long get_inode_num(const char* path){
     // Inode number starts at root 
     unsigned long inode = 0; 
 
-    char copy[MAX_FILE_NAME_LEN];
+    char copy[1000];
     strcpy(copy, path);
 
     char *ptr;
@@ -52,19 +53,24 @@ static unsigned long get_inode_num(const char* path){
         //The latest log entry
         struct wfs_log_entry *latest;
         
+        printf("Iterating through disk now\n");
+        printf("%p\n", start);
+        printf("%p\n", (char*)mapped + ((struct wfs_sb *)mapped)->head);
         // iterate through until you have reached the end of the disk
         while(start < (char*)mapped + ((struct wfs_sb *)mapped)->head){
             struct wfs_log_entry *curr = (struct wfs_log_entry *)start; 
 
+            printf("Checking current entry\n");
             // Check if entry exists, is a directory, and see if inode number found
             if(curr->inode.deleted == 0 && S_ISDIR(curr->inode.mode) && curr->inode.inode_number == inode){
                 latest = curr;
             }
-
+            printf("Go to next log entry\n");
             // Go to the Next Log Entry
             start += sizeof(struct wfs_inode) + curr->inode.size ;
         }
 
+        printf("Examine data\n");
         // Look at the data associated with log entry
         struct wfs_dentry *entry = (struct wfs_dentry *)latest->data;
         int offset = 0;
@@ -72,11 +78,13 @@ static unsigned long get_inode_num(const char* path){
         while(offset < latest->inode.size){
             // Find the inode number 
             if(strcmp(token, entry->name) == 0){
+                printf("inode found\n");
                 found = 1;
                 inode = entry->inode_number;
                 break;
             }
 
+            printf("next dentry\n");
             offset += sizeof(struct wfs_dentry);
             entry++; 
         }
@@ -120,6 +128,8 @@ static struct wfs_inode *get_inode(unsigned long inode_num){
 static int wfs_getattr(const char* path, struct stat* stbuf){
 
     unsigned long inode_num = get_inode_num(path);
+
+    printf("%ld\n", inode_num);
 
     if (inode_num == -1){
         return  -ENOENT;
@@ -340,6 +350,7 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
 }
 
 static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi){
+    printf("Entering readdir\n");
     int inodeNum = get_inode_num(path);
 
     // Check that the dir exists
@@ -349,6 +360,7 @@ static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_
     }
 
     struct wfs_log_entry *dir_to_read = (struct wfs_log_entry *)get_inode(inodeNum);
+    printf("%d\n inode number\n", dir_to_read->inode.inode_number);
 
     // Check that it is a dir
     if(dir_to_read->inode.mode == __S_IFREG) {
@@ -465,18 +477,30 @@ int main(int argc, char *argv[]) {
     // Initialize FUSE with specified operations
     // Filter argc and argv here and then pass it to fuse_main
     struct stat statbuf;
+    disk_path = argv[argc-2];
     int fd = open(disk_path, O_RDWR);
 
-    if (fstat(fd, &statbuf) < 0) {
-        printf ("fstat error");
+    if(fd < 0) {
+        printf("Uh oh\n");
+        printf("%s", strerror(errno));
         return 0;
     }
+    if (fstat(fd, &statbuf) < 0) {
+        printf ("fstat error\n");
+        printf("%s", strerror(errno));
+        return 0;
+    }
+    printf("try to map\n");
     mapped = mmap(0, statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    printf("mapped success\n");
 
 
     argv[argc - 2] = argv[argc - 1];
     argv[argc - 1] = NULL;
     argc--;
-
+    
+    printf("%s\n", argv[argc - 2]);
+    printf("%s\n", argv[argc - 1]);
+    printf("trying to fuse\n");
     return fuse_main(argc, argv, &ops, NULL);
 }
