@@ -67,22 +67,29 @@ static char *get_filename(const char* path) {
 
 static struct wfs_inode *get_inode(const char* filename) {
     char *start = (char*)mapped + sizeof(struct wfs_sb);
+    uint32_t head_off = ((struct wfs_sb *)mapped)->head;
+    printf("%d\n", head_off);
 
-    while(start < (char*)mapped + ((struct wfs_sb *)mapped)->head) {
+    while((void*)start < (void *)((uintptr_t)mapped + head_off)) {
+        printf("Entering while loop\n");
         struct wfs_log_entry *curr = (struct wfs_log_entry *)start;
+        if(strcmp(filename, "") == 0) {
+            printf("matching for root\n");
+            if(curr->inode.inode_number == 0) {
+                printf("root found\n");
+                return &curr->inode;
+            }
+        }
 
         if(curr->inode.deleted == 0 && S_ISDIR(curr->inode.mode)){
 
             struct wfs_dentry *current_dentry = (struct wfs_dentry *)(curr + sizeof(struct wfs_inode));
 
             while((char*)current_dentry < (char*)current_dentry + curr->inode.size) {
-                if(strcmp(filename, "") == 0) {
-                    if(curr->inode.inode_number == 0) {
-                        return &curr->inode;
-                    }
-                }
                 
+                printf("Current dentry name: %s\n", current_dentry->name);
                 if(strcmp(current_dentry->name, filename) == 0) {
+                    
                     return &curr->inode;
                 }
                 current_dentry += sizeof(struct wfs_dentry);
@@ -230,6 +237,7 @@ static struct wfs_inode *get_inode(const char* filename) {
 static int wfs_getattr(const char* path, struct stat* stbuf){
 
     struct wfs_inode *inode = get_inode(get_filename(path));
+    printf("Inode for %s being retrieved\n", get_filename(path));
 
     if(inode == NULL){
         return -ENOENT;
@@ -327,10 +335,18 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     // Copy that new dentry into a new parent log entry
     struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
     void *parent_log_head = (void *)((uintptr_t)new_parent_log + sizeof(*log_entry));
-    memcpy(new_parent_log, parent_inode, sizeof(*inode));
-    new_parent_log->inode.size += sizeof(*new_dentry);
-    new_parent_log->inode.ctime = time(NULL);
-    new_parent_log->inode.mtime = time(NULL);
+    struct wfs_inode *inodeNew = (struct wfs_inode *)malloc(sizeof(struct wfs_inode));
+    inodeNew->deleted = parent_inode->deleted;
+    inodeNew->mode = parent_inode->mode;
+    inodeNew->uid = parent_inode->uid;
+    inodeNew->gid = parent_inode->gid;
+    inodeNew->flags = parent_inode->flags;
+    inodeNew->size = parent_inode->size + sizeof(struct wfs_dentry);
+    inodeNew->atime = time(NULL);
+    inodeNew->mtime = time(NULL);
+    inodeNew->ctime = time(NULL);
+    inodeNew->links = 1;
+    memcpy(new_parent_log, inodeNew, sizeof(struct wfs_inode));
     memcpy(parent_log_head, new_dentry, sizeof(struct wfs_dentry));
 
     printf("Copy parent log entry into log\n");
@@ -338,10 +354,11 @@ static int wfs_mknod(const char* path, mode_t mode, dev_t dev){
     struct wfs_sb *sb = (struct wfs_sb *)mapped;
     memcpy((void *)((uintptr_t)(sb->head) + disk_path), new_parent_log, sizeof(*new_parent_log));
     sb->head += sizeof(*new_parent_log);
+    
 
     printf("Copying new log entry\n");
     // Copy new log entry for new inode into log
-    memcpy((void *)((uintptr_t)(sb->head)), new_log, sizeof(*new_log));
+    memcpy((void *)((uintptr_t)(sb->head) + disk_path), new_log, sizeof(*new_log));
     sb->head += sizeof(*new_log);
 
 

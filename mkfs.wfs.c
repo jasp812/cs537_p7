@@ -47,6 +47,7 @@ int init_filesystem(char *disk_path) {
     // Set the magic number and head
     sb->magic = WFS_MAGIC;
     sb->head = sizeof(struct wfs_sb);
+    printf("%d\n", sb->head);
     printf("Set magic number and head\n");
 
     // Copy superblock into mapped memory and then free the malloc ptr
@@ -75,7 +76,8 @@ int init_filesystem(char *disk_path) {
 
     // Copy root log entry into disk, update head, and free malloc'd ptrs
     memcpy((void *)((uintptr_t)mapped + sizeof(struct wfs_sb)), log_entry, sizeof(*log_entry));
-    sb->head += sizeof(*log_entry);
+    ((struct wfs_sb *)mapped)->head += sizeof(struct wfs_log_entry);
+    printf("%d\n", ((struct wfs_sb *)mapped)->head);
 
     // printf("%d\n", ((struct wfs_log_entry *)((uintptr_t)mapped + sizeof(struct wfs_sb)))->inode.inode_number);
     free(inode);
