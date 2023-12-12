@@ -86,8 +86,6 @@ int init_filesystem(char *disk_path) {
     munmap(mapped, sb->head);
     close(fd);
 
-
-
     return 0;
 }
 
@@ -111,4 +109,5 @@ int main( int argc, char *argv[] )  {
     printf("Checkpoint 2\n");
     init_filesystem(disk_path);
 }
+
 
