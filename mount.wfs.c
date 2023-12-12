@@ -31,42 +31,42 @@ char *disk_path;
 //     return max_inode_num;
 // }
 
-static char *get_filename(const char* path) {
-    if(strcmp(path, "") == 0) {
-        printf("Returning blank\n");
-        char *re = "";
-        return re;
-    }
+// static char *get_filename(const char* path) {
+//     if(strcmp(path, "") == 0) {
+//         printf("Returning blank\n");
+//         char *re = "";
+//         return re;
+//     }
 
-    char copy[1000];
-    strcpy(copy, path);
+//     char copy[1000];
+//     strcpy(copy, path);
 
-    char *token = (strtok(copy, "/"));
-    char new_filename[MAX_FILE_NAME_LEN];
+//     char *token = (strtok(copy, "/"));
+//     char new_filename[MAX_FILE_NAME_LEN];
 
-    // Parse through given path to get the leaf node filename
-    while(token) {
-        printf("token Before: %s\n", token);
-        char prevToken[300];
-        strcpy(prevToken, token);
+//     // Parse through given path to get the leaf node filename
+//     while(token) {
+//         printf("token Before: %s\n", token);
+//         char prevToken[300];
+//         strcpy(prevToken, token);
 
-        token = strtok(NULL, "/");
-        printf("token after %s\n", token);
+//         token = strtok(NULL, "/");
+//         printf("token after %s\n", token);
 
-        // Reason we check for this before strcat call on parentPath is to check if the prevToken is 
-        // the filename of the new inode. If it is, we don't want to include it in the parentPath
-        // and so just break
-        if(token == NULL) {
-            strcpy(new_filename, prevToken);
-            printf("new filename %s\n", new_filename);
-            break;
-        }
-    }
+//         // Reason we check for this before strcat call on parentPath is to check if the prevToken is 
+//         // the filename of the new inode. If it is, we don't want to include it in the parentPath
+//         // and so just break
+//         if(token == NULL) {
+//             strcpy(new_filename, prevToken);
+//             printf("new filename %s\n", new_filename);
+//             break;
+//         }
+//     }
 
-    char *ret = malloc(MAX_FILE_NAME_LEN);
-    strcpy(ret, new_filename);
-    return ret;
-}
+//     char *ret = malloc(MAX_FILE_NAME_LEN);
+//     strcpy(ret, new_filename);
+//     return ret;
+// }
 
 // Find the latest log entry associated with the inode_num
 static struct wfs_log_entry *get_latest_log_entry(unsigned long inode_num){
@@ -147,47 +147,47 @@ static struct wfs_log_entry *get_log_entry_path(const char *path){
 
 }
 
-static struct wfs_inode *get_inode(const char* filename) {
-    char *start = (char*)mapped + sizeof(struct wfs_sb);
-    uint32_t head_off = ((struct wfs_sb *)mapped)->head;
-    printf("%d\n", head_off);
+// static struct wfs_inode *get_inode(const char* filename) {
+//     char *start = (char*)mapped + sizeof(struct wfs_sb);
+//     uint32_t head_off = ((struct wfs_sb *)mapped)->head;
+//     printf("%d\n", head_off);
 
-    while((void*)start < (void *)((uintptr_t)mapped + head_off)) {
-        printf("Entering while loop\n");
-        struct wfs_log_entry *curr = (struct wfs_log_entry *)start;
-        if(strcmp(filename, "") == 0) {
-            printf("matching for root\n");
-            if(curr->inode.inode_number == 0) {
-                printf("root found\n");
-                return &curr->inode;
-            }
-        }
+//     while((void*)start < (void *)((uintptr_t)mapped + head_off)) {
+//         printf("Entering while loop\n");
+//         struct wfs_log_entry *curr = (struct wfs_log_entry *)start;
+//         if(strcmp(filename, "") == 0) {
+//             printf("matching for root\n");
+//             if(curr->inode.inode_number == 0) {
+//                 printf("root found\n");
+//                 return &curr->inode;
+//             }
+//         }
 
-        if(curr->inode.deleted == 0 && S_ISDIR(curr->inode.mode)){
+//         if(curr->inode.deleted == 0 && S_ISDIR(curr->inode.mode)){
 
-            struct wfs_dentry *current_dentry = (struct wfs_dentry *)(curr + sizeof(struct wfs_inode));
+//             struct wfs_dentry *current_dentry = (struct wfs_dentry *)(curr + sizeof(struct wfs_inode));
 
-            while((char*)current_dentry < (char*)current_dentry + curr->inode.size) {
+//             while((char*)current_dentry < (char*)current_dentry + curr->inode.size) {
                 
-                printf("Current dentry name: %s\n", current_dentry->name);
-                if(strcmp(current_dentry->name, filename) == 0) {
+//                 printf("Current dentry name: %s\n", current_dentry->name);
+//                 if(strcmp(current_dentry->name, filename) == 0) {
                     
-                    return &curr->inode;
-                }
-                current_dentry += sizeof(struct wfs_dentry);
-            }
+//                     return &curr->inode;
+//                 }
+//                 current_dentry += sizeof(struct wfs_dentry);
+//             }
                 
-        }
-        printf("Go to next log entry\n");
-        // Go to the Next Log Entry
-        start += sizeof(struct wfs_inode) + curr->inode.size; 
+//         }
+//         printf("Go to next log entry\n");
+//         // Go to the Next Log Entry
+//         start += sizeof(struct wfs_inode) + curr->inode.size; 
 
-        printf("updated start\n");
-    }
+//         printf("updated start\n");
+//     }
 
-    printf("no inode found\n");
-    return NULL;
-}
+//     printf("no inode found\n");
+//     return NULL;
+// }
 
 // static unsigned long getInodeNumHelper(const char* filename, unsigned long inode_num) {
 //     char *start = (char*)mapped + sizeof(struct wfs_sb);
@@ -328,6 +328,7 @@ static int wfs_getattr(const char* path, struct stat* stbuf){
     }
 
     struct wfs_inode *inode  = &log->inode;
+    memset(stbuf, 0, sizeof(struct stat));
 
     stbuf->st_uid  = inode->uid;
     stbuf->st_gid = inode->gid;
@@ -456,6 +457,9 @@ static int wfs_mkdir(const char* path, mode_t mode){
         return -ENOTDIR;
     }
 
+    mode = mode | __S_IFDIR;
+    mode = mode & (~__S_IFREG);
+
     // make inode for the directory
     // mknod will also update the log for us with an new updated parent dir log entry, and a
     // new log entry for the new dir
@@ -480,13 +484,15 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
         return 0;
     }
 
-    if(log->inode.mode != __S_IFREG) {
+    if(log->inode.mode == __S_IFDIR) {
         printf("Cannot read from a non-regular file\n");
         return -ENOENT;
     }
 
-    if(size >= log->inode.size - offset) {
+    if(size > log->inode.size - offset) {
         numBytes = log->inode.size - offset;
+    }else{
+        numBytes = size;
     } 
 
     memcpy((void *)buf, (void *)(log->data + offset), numBytes);
@@ -516,23 +522,23 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
         return 0;
     }
 
-    size_t max_write = log->inode.size - offset;
-    size_t write_size; 
+    // size_t max_write = log->inode.size - offset;
+    // size_t write_size; 
 
-    if(size < max_write){
-        write_size = size;
-    }
-    else{
-        write_size = max_write;
-    }
+    // if(size < max_write){
+    //     write_size = size;
+    // }
+    // else{
+    //     write_size = max_write;
+    // }
 
     struct wfs_log_entry *latest = (struct wfs_log_entry *)&log->inode;
 
     // Create new log entry containing new written data
-    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)malloc(sizeof(*latest) + write_size);
+    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)calloc(1, sizeof(*latest) + size);
     void *write_addr = (void *)(new_log_entry->data + offset);
     memcpy(new_log_entry, &log->inode, sizeof(log->inode));
-    memcpy(write_addr, buf, write_size);
+    memcpy(write_addr, buf, size);
     new_log_entry->inode.size = sizeof(*new_log_entry) - sizeof(struct wfs_inode);
     new_log_entry->inode.mtime = time(NULL);
     new_log_entry->inode.ctime = time(NULL);
@@ -542,7 +548,7 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
     memcpy((void *)((uintptr_t)(sb->head) + disk_path), new_log_entry, sizeof(*new_log_entry));
     sb->head += sizeof(*new_log_entry);
 
-    return write_size;
+    return size;
 }
 
 static int wfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* fi){
@@ -614,9 +620,9 @@ static int wfs_unlink(const char* path){
         strcat(parentPath, prevToken);
         
     }
-
-    // Get the log entry associated with the parent directory
-    struct wfs_inode *inode = get_inode(get_filename(path));
+    
+    struct wfs_log_entry *entry2 = get_log_entry_path(parentPath);
+    struct wfs_inode *inode = &entry2->inode;
     struct wfs_log_entry *log_entry = (struct wfs_log_entry *)inode;
     struct wfs_log_entry *new_parent_log = (struct wfs_log_entry *)malloc(sizeof(*log_entry) + sizeof(struct wfs_dentry));
 
