@@ -594,13 +594,10 @@ static int wfs_unlink(const char* path){
     while(start < (char *)entry2->data + entry2->inode.size){
         struct wfs_dentry *latest = (struct wfs_dentry *)start;
         if(strcmp(latest->name, path)){
-            struct wfs_dentry *new_dentry = malloc(sizeof(struct wfs_dentry));
-            strcpy(new_dentry->name, new_filename);
-            new_dentry->inode_number = inode->inode_number;
-
+            struct wfs_dentry *new_dentry = (struct wfs_dentry *)malloc(sizeof(struct wfs_dentry));
+            strcpy(new_dentry->name, latest->name);
+            new_dentry->inode_number = latest->inode_number;
             // Copy that new dentry into a new parent log entry
-            
-            
             new_parent_log->inode.size += sizeof(*new_dentry);
             new_parent_log->inode.ctime = time(NULL);
             new_parent_log->inode.mtime = time(NULL);
