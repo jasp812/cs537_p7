@@ -417,29 +417,36 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
     // char *data = &(log_entry->data);
     size_t numBytes = size;
 
+    printf("Error Checks\n");
     if(log == NULL){
         return -ENOENT;
     }
 
+    printf("Checking offset value\n");
     if(offset >= log->inode.size) {
         printf("Offset cannot exceed size of data\n");
         return 0;
     }
 
+    printf("Checking if file or directory\n");
     if(log->inode.mode == __S_IFDIR) {
         printf("Cannot read from a non-regular file\n");
         return -ENOENT;
     }
 
+    printf("Finding number of bytes to read\n");
     if(size > log->inode.size - offset) {
         numBytes = log->inode.size - offset;
     }else{
         numBytes = size;
     } 
 
+    printf("bytes Read: %ld\n", numBytes);
+
+    printf("Copying to buffer\n");
+    printf("buffer size %ld\n", strlen(buf));
     memcpy((void *)buf, (void *)(log->data + offset), numBytes);
 
-    printf("bytes Read: %ld\n", numBytes);
     printf("Buffer Read: %s\n", buf);
 
     return numBytes; 
@@ -448,18 +455,10 @@ static int wfs_read(const char* path, char *buf, size_t size, off_t offset, stru
 // TODO: change write so that it doesn't check if size or offset exceeds inode's size bounds,
 // since that prevents write from being used to append to the end of a file
 static int wfs_write(const char* path, const char *buf, size_t size, off_t offset, struct fuse_file_info* fi){
-
-    printf("buffer: %s", buf);
-    printf("Offset: %ld\n", offset);
-    printf("Size: %ld\n", size);
     
     printf("In Write\n");
 
     struct wfs_log_entry *log =get_log_entry_path(path);
-
-    printf("Inode size: %d\n", log->inode.size);
-
-    printf("got log entry\n");
 
     if(log == NULL){
         return -ENOENT;
@@ -486,24 +485,31 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
     //     write_size = max_write;
     // }
 
-    size_t write_size = offset + size - log->inode.size;
-    if(write_size < 0){
-        write_size = 0;
+    size_t increased_size = offset + size - log->inode.size;
+    if(increased_size <= 0){
+        increased_size = 0;
     }
 
-    printf("Write Size: %ld\n", write_size);
+    printf("buffer: %s\n", buf);
+    printf("Offset: %ld\n", offset);
+    printf("Size: %ld\n", size);
+    printf("Inode size: %d\n", log->inode.size);
+
+    printf("Write Size: %ld\n", increased_size);
 
     printf("getting latest log entry\n");
     // struct wfs_log_entry *latest = (struct wfs_log_entry *)&log->inode;
 
     // Create new log entry containing new written data
     printf("new written data\n");
-    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)calloc(1, sizeof(*log) + log->inode.size + write_size);
+    struct wfs_log_entry *new_log_entry = (struct wfs_log_entry *)calloc(1, sizeof(*log) + log->inode.size + increased_size);
     void *write_addr = (void *)(new_log_entry->data + offset);
     memcpy(new_log_entry, &log->inode, sizeof(log->inode));
 
     // FLAG
-    new_log_entry->inode.size = sizeof(*new_log_entry) + new_log_entry->inode.size - sizeof(struct wfs_inode) + write_size; 
+    printf("old inode size: %d\n", new_log_entry->inode.size);
+    new_log_entry->inode.size = log->inode.size + increased_size; 
+    printf("new inode size: %d\n", new_log_entry->inode.size);
     new_log_entry->inode.mtime = time(NULL);
     new_log_entry->inode.ctime = time(NULL);
 
@@ -641,6 +647,8 @@ static int wfs_unlink(const char* path){
     memcpy((void *)(sb->head + (uintptr_t)mapped), new_parent_log, sizeof(*new_parent_log) + new_parent_log->inode.size);
     sb->head += sizeof(*new_parent_log) + new_parent_log->inode.size;
 
+    free(parentPath);
+
     return 0;
 }
 
@@ -686,7 +694,10 @@ int main(int argc, char *argv[]) {
     printf("trying to fuse\n");
 
     // // wfs_mkdir("/a", __S_IFDIR);
-    wfs_mknod("/data11", S_IFREG, makedev(0,0));
+    // wfs_mknod("/data11", S_IFREG, makedev(0,0));
+    // wfs_write("/data11", "Hello", strlen("Hello"), 0, NULL);
+    // char buff[100];
+    // wfs_read("/data11", buff, strlen("Hello"), 0, NULL);
     
     int ret = fuse_main(argc, argv, &ops, NULL);
     
