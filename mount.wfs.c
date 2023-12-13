@@ -464,7 +464,7 @@ static int wfs_write(const char* path, const char *buf, size_t size, off_t offse
         return -ENOENT;
     }
 
-    if(log->inode.mode != __S_IFREG){
+    if(log->inode.mode == __S_IFDIR){
         return -ENOENT;
     }
 
@@ -694,7 +694,7 @@ int main(int argc, char *argv[]) {
     printf("trying to fuse\n");
 
     // // wfs_mkdir("/a", __S_IFDIR);
-    // wfs_mknod("/data11", S_IFREG, makedev(0,0));
+    // wfs_mknod("/data11", __S_IFREG, makedev(0,0));
     // wfs_write("/data11", "Hello", strlen("Hello"), 0, NULL);
     // char buff[100];
     // wfs_read("/data11", buff, strlen("Hello"), 0, NULL);
